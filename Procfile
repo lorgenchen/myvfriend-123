@@ -1,1 +1,1 @@
-web: python chatbot_grok.py
+web: gunicorn chatbot_grok:app
