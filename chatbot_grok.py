@@ -8,8 +8,29 @@ from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.messaging import TextMessage
 from dotenv import load_dotenv
+import logging
 
-app = Flask(__name__)  # 先定義 app
+app = Flask(__name__)
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+logger.debug("Flask app starting")
+
+@app.route("/test", methods=['GET'])
+def test():
+    logger.debug("Handling /test request")
+    return "Hello, test!", 200
+
+@app.route("/callback", methods=['POST'])
+def callback():
+    logger.debug("Handling /callback request")
+    signature = request.headers['X-Line-Signature']
+    body = request.get_data(as_text=True)
+    try:
+        handler.handle(body, signature)
+    except InvalidSignatureError:
+        abort(400)
+    return 'OK'
 
 # 載入環境變數
 load_dotenv()
@@ -22,22 +43,6 @@ handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
 # Gemini AI 設定
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-1.5-pro")
-
-# 測試路由
-@app.route("/test", methods=['GET'])
-def test():
-    return "Hello, test!", 200
-
-# LINE Webhook
-@app.route("/callback", methods=['POST'])
-def callback():
-    signature = request.headers['X-Line-Signature']
-    body = request.get_data(as_text=True)
-    try:
-        handler.handle(body, signature)
-    except InvalidSignatureError:
-        abort(400)
-    return 'OK'
 
 # 檔案名稱模板
 def get_user_file(user_id, file_type):
@@ -125,4 +130,5 @@ def handle_message(event):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
+    logger.debug(f"Starting Flask on port {port}")
     app.run(host="0.0.0.0", port=port)
