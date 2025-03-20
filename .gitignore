@@ -1,0 +1,5 @@
+.env
+*.docx
+chat_history*.json
+user_profile*.json
+ngrok.exe
