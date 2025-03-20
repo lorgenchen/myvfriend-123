@@ -1,3 +1,6 @@
+@app.route("/test", methods=['GET'])
+def test():
+    return "Hello, test!", 200
 import google.generativeai as genai
 import json
 import os
