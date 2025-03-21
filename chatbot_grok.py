@@ -16,6 +16,18 @@ logger = logging.getLogger(__name__)
 
 logger.debug("Flask app starting")
 
+# 根路由（健康檢查用）
+@app.route("/", methods=['GET'])
+def home():
+    logger.debug("Handling / request")
+    return "Welcome to myvfriend-123!", 200
+
+# 測試路由
+@app.route("/test", methods=['GET'])
+def test():
+    logger.debug("Handling /test request")
+    return "Hello, test!", 200
+
 # LINE Webhook
 @app.route("/callback", methods=['POST'])
 def callback():
