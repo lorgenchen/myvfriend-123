@@ -2,7 +2,7 @@ import google.generativeai as genai
 import json
 import os
 from flask import Flask, request, abort
-from linebot.v3.messaging import MessagingApi, Configuration, ReplyMessageRequest
+from linebot.v3.messaging import MessagingApi, Configuration, ApiClient, ReplyMessageRequest
 from linebot.v3.webhook import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
@@ -50,14 +50,19 @@ def callback():
 load_dotenv()
 
 # LINE 憑證
-configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
-line_bot_api = MessagingApi(configuration)
+channel_access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
+if not channel_access_token:
+    logger.error("LINE_CHANNEL_ACCESS_TOKEN is not set in environment variables")
+    raise ValueError("LINE_CHANNEL_ACCESS_TOKEN is required")
+configuration = Configuration(access_token=channel_access_token)
+with ApiClient(configuration) as api_client:
+    line_bot_api = MessagingApi(api_client)
 channel_secret = os.environ.get("LINE_CHANNEL_SECRET")
 if not channel_secret:
     logger.error("LINE_CHANNEL_SECRET is not set in environment variables")
     raise ValueError("LINE_CHANNEL_SECRET is required")
 handler = WebhookHandler(channel_secret)
-logger.debug(f"LINE Bot API initialized with token: {os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')[:10]}...")
+logger.debug(f"LINE Bot API initialized with token: {channel_access_token[:10]}...")
 logger.debug(f"Webhook handler initialized with secret: {channel_secret[:10]}...")
 
 # Gemini AI 設定
