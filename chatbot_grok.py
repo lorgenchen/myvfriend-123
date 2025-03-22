@@ -2,7 +2,7 @@ import google.generativeai as genai
 import json
 import os
 from flask import Flask, request, abort
-from linebot.v3.messaging import MessagingApi, Configuration
+from linebot.v3.messaging import MessagingApi, Configuration, ReplyMessageRequest
 from linebot.v3.webhook import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.webhooks import MessageEvent, TextMessageContent
@@ -116,7 +116,12 @@ def handle_message(event):
         save_json(get_user_file(user_id, "user_profile"), user_profile)
         logger.debug(f"Initialized personality for {user_id}")
         try:
-            line_bot_api.reply(event.reply_token, [TextMessage(text="✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉")])
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉")]
+                )
+            )
             logger.debug(f"Sent initialization response to {user_id}")
         except Exception as e:
             logger.error(f"Error sending initialization response: {e}")
@@ -131,7 +136,12 @@ def handle_message(event):
         save_json(get_user_file(user_id, "user_profile"), user_profile)
         logger.debug(f"Updated personality for {user_id}")
         try:
-            line_bot_api.reply(event.reply_token, [TextMessage(text="✅ AI 個性已更新！請繼續聊天～")])
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text="✅ AI 個性已更新！請繼續聊天～")]
+                )
+            )
             logger.debug(f"Sent update response to {user_id}")
         except Exception as e:
             logger.error(f"Error sending update response: {e}")
@@ -165,7 +175,12 @@ def handle_message(event):
         logger.error(f"Error generating response: {e}")
 
     try:
-        line_bot_api.reply(event.reply_token, [TextMessage(text=ai_response)])
+        line_bot_api.reply_message(
+            ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=ai_response)]
+            )
+        )
         logger.debug(f"Sent response to {user_id}: {ai_response}")
     except Exception as e:
         logger.error(f"Error sending response: {e}")
