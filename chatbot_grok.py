@@ -83,8 +83,11 @@ def load_json(file_path):
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as file:
             data = json.load(file)
-            return data if isinstance(data, list) else []
-    return []
+            if file_path.endswith("_profile.json"):
+                return data if isinstance(data, dict) else {}
+            elif file_path.endswith("_history.json"):
+                return data if isinstance(data, list) else []
+    return {} if file_path.endswith("_profile.json") else []
 
 def save_json(file_path, data):
     with open(file_path, "w", encoding="utf-8") as file:
@@ -101,29 +104,29 @@ def handle_message(event):
     user_input = event.message.text.strip()
     logger.debug(f"Received message from {user_id}: {user_input}")
 
-    user_profile = load_json(get_user_file(user_id, "user_profile"))
-    messages = load_json(get_user_file(user_id, "chat_history"))
-    logger.debug(f"Loaded profile and history for {user_id}")
+    user_profile_file = get_user_file(user_id, "user_profile")
+    messages_file = get_user_file(user_id, "chat_history")
+    user_profile = load_json(user_profile_file)
+    messages = load_json(messages_file)
+    logger.debug(f"Loaded profile: {user_profile}")
+    logger.debug(f"Loaded history: {messages}")
 
     FREE_PERSONALITY_SETTINGS = ["幽默感", "溫暖程度", "樂觀度", "回應態度", "健談程度"]
     PAID_PERSONALITY_SETTINGS = ["直率程度", "情緒應對方式", "建議提供程度", "深度話題程度"]
-
-    if not isinstance(user_profile, dict):
-        user_profile = {}
 
     if "ai_gender" not in user_profile:
         user_profile["ai_gender"] = "中性"
         logger.debug(f"Set default ai_gender for {user_id}")
 
-    if "personality" not in user_profile or not user_profile["personality"]:
+    if "personality" not in user_profile:
         user_profile["personality"] = {}
         for setting in FREE_PERSONALITY_SETTINGS:
             user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
         if "付費用戶" in user_profile and user_profile["付費用戶"]:
             for setting in PAID_PERSONALITY_SETTINGS:
                 user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
-        save_json(get_user_file(user_id, "user_profile"), user_profile)
-        logger.debug(f"Initialized personality for {user_id}")
+        save_json(user_profile_file, user_profile)
+        logger.debug(f"Initialized personality for {user_id}: {user_profile}")
         try:
             line_bot_api.reply_message(
                 ReplyMessageRequest(
@@ -142,8 +145,8 @@ def handle_message(event):
         if "付費用戶" in user_profile and user_profile["付費用戶"]:
             for setting in PAID_PERSONALITY_SETTINGS:
                 user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
-        save_json(get_user_file(user_id, "user_profile"), user_profile)
-        logger.debug(f"Updated personality for {user_id}")
+        save_json(user_profile_file, user_profile)
+        logger.debug(f"Updated personality for {user_id}: {user_profile}")
         try:
             line_bot_api.reply_message(
                 ReplyMessageRequest(
@@ -193,11 +196,11 @@ def handle_message(event):
         logger.debug(f"Sent response to {user_id}: {ai_response}")
     except Exception as e:
         logger.error(f"Error sending response: {e}")
-        return  # 避免在發送失敗時繼續執行
+        return
 
     messages.append({"user": user_input, "ai": ai_response})
-    save_json(get_user_file(user_id, "chat_history"), messages)
-    logger.debug(f"Saved chat history for {user_id}")
+    save_json(messages_file, messages)
+    logger.debug(f"Saved chat history for {user_id}: {messages}")
 
 if __name__ == "__main__":
     import os
