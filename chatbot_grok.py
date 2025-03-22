@@ -81,17 +81,25 @@ def get_user_file(user_id, file_type):
 # 讀取與儲存 JSON
 def load_json(file_path):
     if os.path.exists(file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
-            data = json.load(file)
-            if file_path.endswith("_profile.json"):
-                return data if isinstance(data, dict) else {}
-            elif file_path.endswith("_history.json"):
-                return data if isinstance(data, list) else []
+        try:
+            with open(file_path, "r", encoding="utf-8") as file:
+                data = json.load(file)
+                if file_path.endswith("_profile.json"):
+                    return data if isinstance(data, dict) else {}
+                elif file_path.endswith("_history.json"):
+                    return data if isinstance(data, list) else []
+        except Exception as e:
+            logger.error(f"Error loading JSON from {file_path}: {e}")
+            return {} if file_path.endswith("_profile.json") else []
     return {} if file_path.endswith("_profile.json") else []
 
 def save_json(file_path, data):
-    with open(file_path, "w", encoding="utf-8") as file:
-        json.dump(data, file, ensure_ascii=False, indent=4)
+    try:
+        with open(file_path, "w", encoding="utf-8") as file:
+            json.dump(data, file, ensure_ascii=False, indent=4)
+        logger.debug(f"Successfully saved to {file_path}: {data}")
+    except Exception as e:
+        logger.error(f"Error saving JSON to {file_path}: {e}")
 
 # 設定個性（預設值）
 def get_setting(prompt):
@@ -114,11 +122,15 @@ def handle_message(event):
     FREE_PERSONALITY_SETTINGS = ["幽默感", "溫暖程度", "樂觀度", "回應態度", "健談程度"]
     PAID_PERSONALITY_SETTINGS = ["直率程度", "情緒應對方式", "建議提供程度", "深度話題程度"]
 
+    if not isinstance(user_profile, dict):
+        user_profile = {}
+        logger.debug(f"Reset user_profile to empty dict for {user_id}")
+
     if "ai_gender" not in user_profile:
         user_profile["ai_gender"] = "中性"
         logger.debug(f"Set default ai_gender for {user_id}")
 
-    if "personality" not in user_profile:
+    if "personality" not in user_profile or not isinstance(user_profile["personality"], dict):
         user_profile["personality"] = {}
         for setting in FREE_PERSONALITY_SETTINGS:
             user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
@@ -137,6 +149,8 @@ def handle_message(event):
             logger.debug(f"Sent initialization response to {user_id}")
         except Exception as e:
             logger.error(f"Error sending initialization response: {e}")
+        messages.append({"user": user_input, "ai": "✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉"})
+        save_json(messages_file, messages)
         return
 
     if user_input == "調整設定":
@@ -157,6 +171,8 @@ def handle_message(event):
             logger.debug(f"Sent update response to {user_id}")
         except Exception as e:
             logger.error(f"Error sending update response: {e}")
+        messages.append({"user": user_input, "ai": "✅ AI 個性已更新！請繼續聊天～"})
+        save_json(messages_file, messages)
         return
 
     personality = user_profile["personality"]
