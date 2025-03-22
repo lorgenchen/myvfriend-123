@@ -34,11 +34,16 @@ def callback():
     logger.debug("Handling /callback request")
     signature = request.headers['X-Line-Signature']
     body = request.get_data(as_text=True)
+    logger.debug(f"Received webhook with signature: {signature}, body: {body}")
     try:
         handler.handle(body, signature)
+        logger.debug("Webhook handled successfully")
     except InvalidSignatureError:
         logger.error("Invalid signature error")
         abort(400)
+    except Exception as e:
+        logger.error(f"Error handling webhook: {e}")
+        abort(500)
     return 'OK'
 
 # 載入環境變數
@@ -48,12 +53,13 @@ load_dotenv()
 configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 line_bot_api = MessagingApi(configuration)
 handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
-logger.debug("LINE Bot API and Webhook handler initialized")
+logger.debug(f"LINE Bot API initialized with token: {os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')[:10]}...")
+logger.debug(f"Webhook handler initialized with secret: {os.environ.get('LINE_CHANNEL_SECRET')[:10]}...")
 
 # Gemini AI 設定
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-1.5-pro")
-logger.debug("Gemini AI configured")
+logger.debug(f"Gemini AI configured with key: {os.environ.get('GEMINI_API_KEY')[:10]}...")
 
 # 檔案名稱模板
 def get_user_file(user_id, file_type):
@@ -101,7 +107,11 @@ def handle_message(event):
                 user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
         save_json(get_user_file(user_id, "user_profile"), user_profile)
         logger.debug(f"Initialized personality for {user_id}")
-        line_bot_api.reply(event.reply_token, [TextMessage(text="✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉")])
+        try:
+            line_bot_api.reply(event.reply_token, [TextMessage(text="✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉")])
+            logger.debug(f"Sent initialization response to {user_id}")
+        except Exception as e:
+            logger.error(f"Error sending initialization response: {e}")
         return
 
     if user_input == "調整設定":
@@ -112,7 +122,11 @@ def handle_message(event):
                 user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
         save_json(get_user_file(user_id, "user_profile"), user_profile)
         logger.debug(f"Updated personality for {user_id}")
-        line_bot_api.reply(event.reply_token, [TextMessage(text="✅ AI 個性已更新！請繼續聊天～")])
+        try:
+            line_bot_api.reply(event.reply_token, [TextMessage(text="✅ AI 個性已更新！請繼續聊天～")])
+            logger.debug(f"Sent update response to {user_id}")
+        except Exception as e:
+            logger.error(f"Error sending update response: {e}")
         return
 
     personality = user_profile["personality"]
@@ -142,8 +156,11 @@ def handle_message(event):
         ai_response = "哎呀，好像出了點問題，我晚點再試試吧！"
         logger.error(f"Error generating response: {e}")
 
-    line_bot_api.reply(event.reply_token, [TextMessage(text=ai_response)])
-    logger.debug(f"Sent response to {user_id}: {ai_response}")
+    try:
+        line_bot_api.reply(event.reply_token, [TextMessage(text=ai_response)])
+        logger.debug(f"Sent response to {user_id}: {ai_response}")
+    except Exception as e:
+        logger.error(f"Error sending response: {e}")
 
     messages.append({"user": user_input, "ai": ai_response})
     save_json(get_user_file(user_id, "chat_history"), messages)
