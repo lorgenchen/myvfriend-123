@@ -82,8 +82,9 @@ def get_user_file(user_id, file_type):
 def load_json(file_path):
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as file:
-            return json.load(file)
-    return {}
+            data = json.load(file)
+            return data if isinstance(data, list) else []
+    return []
 
 def save_json(file_path, data):
     with open(file_path, "w", encoding="utf-8") as file:
@@ -106,6 +107,9 @@ def handle_message(event):
 
     FREE_PERSONALITY_SETTINGS = ["幽默感", "溫暖程度", "樂觀度", "回應態度", "健談程度"]
     PAID_PERSONALITY_SETTINGS = ["直率程度", "情緒應對方式", "建議提供程度", "深度話題程度"]
+
+    if not isinstance(user_profile, dict):
+        user_profile = {}
 
     if "ai_gender" not in user_profile:
         user_profile["ai_gender"] = "中性"
@@ -189,6 +193,7 @@ def handle_message(event):
         logger.debug(f"Sent response to {user_id}: {ai_response}")
     except Exception as e:
         logger.error(f"Error sending response: {e}")
+        return  # 避免在發送失敗時繼續執行
 
     messages.append({"user": user_input, "ai": ai_response})
     save_json(get_user_file(user_id, "chat_history"), messages)
