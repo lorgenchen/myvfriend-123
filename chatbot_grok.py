@@ -52,14 +52,22 @@ load_dotenv()
 # LINE 憑證
 configuration = Configuration(access_token=os.environ.get("LINE_CHANNEL_ACCESS_TOKEN"))
 line_bot_api = MessagingApi(configuration)
-handler = WebhookHandler(os.environ.get("LINE_CHANNEL_SECRET"))
+channel_secret = os.environ.get("LINE_CHANNEL_SECRET")
+if not channel_secret:
+    logger.error("LINE_CHANNEL_SECRET is not set in environment variables")
+    raise ValueError("LINE_CHANNEL_SECRET is required")
+handler = WebhookHandler(channel_secret)
 logger.debug(f"LINE Bot API initialized with token: {os.environ.get('LINE_CHANNEL_ACCESS_TOKEN')[:10]}...")
-logger.debug(f"Webhook handler initialized with secret: {os.environ.get('LINE_CHANNEL_SECRET')[:10]}...")
+logger.debug(f"Webhook handler initialized with secret: {channel_secret[:10]}...")
 
 # Gemini AI 設定
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
+if not gemini_api_key:
+    logger.error("GEMINI_API_KEY is not set in environment variables")
+    raise ValueError("GEMINI_API_KEY is required")
+genai.configure(api_key=gemini_api_key)
 model = genai.GenerativeModel("gemini-1.5-pro")
-logger.debug(f"Gemini AI configured with key: {os.environ.get('GEMINI_API_KEY')[:10]}...")
+logger.debug(f"Gemini AI configured with key: {gemini_api_key[:10]}...")
 
 # 檔案名稱模板
 def get_user_file(user_id, file_type):
