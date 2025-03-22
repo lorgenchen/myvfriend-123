@@ -91,6 +91,7 @@ def load_json(file_path):
         except Exception as e:
             logger.error(f"Error loading JSON from {file_path}: {e}")
             return {} if file_path.endswith("_profile.json") else []
+    logger.debug(f"No file found at {file_path}, returning default")
     return {} if file_path.endswith("_profile.json") else []
 
 def save_json(file_path, data):
@@ -122,15 +123,12 @@ def handle_message(event):
     FREE_PERSONALITY_SETTINGS = ["幽默感", "溫暖程度", "樂觀度", "回應態度", "健談程度"]
     PAID_PERSONALITY_SETTINGS = ["直率程度", "情緒應對方式", "建議提供程度", "深度話題程度"]
 
-    if not isinstance(user_profile, dict):
-        user_profile = {}
-        logger.debug(f"Reset user_profile to empty dict for {user_id}")
-
     if "ai_gender" not in user_profile:
         user_profile["ai_gender"] = "中性"
         logger.debug(f"Set default ai_gender for {user_id}")
 
-    if "personality" not in user_profile or not isinstance(user_profile["personality"], dict):
+    # 只在 personality 完全不存在時初始化
+    if "personality" not in user_profile or not user_profile["personality"]:
         user_profile["personality"] = {}
         for setting in FREE_PERSONALITY_SETTINGS:
             user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
