@@ -9,6 +9,7 @@ from linebot.v3.webhooks import MessageEvent, TextMessageContent
 from linebot.v3.messaging import TextMessage
 from dotenv import load_dotenv
 import logging
+import time
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.DEBUG)
@@ -16,19 +17,16 @@ logger = logging.getLogger(__name__)
 
 logger.debug("Flask app starting")
 
-# 根路由（健康檢查用）
 @app.route("/", methods=['GET'])
 def home():
     logger.debug("Handling / request")
     return "Welcome to myvfriend-123!", 200
 
-# 測試路由
 @app.route("/test", methods=['GET'])
 def test():
     logger.debug("Handling /test request")
     return "Hello, test!", 200
 
-# LINE Webhook
 @app.route("/callback", methods=['POST'])
 def callback():
     logger.debug("Handling /callback request")
@@ -46,39 +44,34 @@ def callback():
         abort(500)
     return 'OK'
 
-# 載入環境變數
 load_dotenv()
 
-# LINE 憑證
 channel_access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
 if not channel_access_token:
-    logger.error("LINE_CHANNEL_ACCESS_TOKEN is not set in environment variables")
+    logger.error("LINE_CHANNEL_ACCESS_TOKEN is not set")
     raise ValueError("LINE_CHANNEL_ACCESS_TOKEN is required")
 configuration = Configuration(access_token=channel_access_token)
 with ApiClient(configuration) as api_client:
     line_bot_api = MessagingApi(api_client)
 channel_secret = os.environ.get("LINE_CHANNEL_SECRET")
 if not channel_secret:
-    logger.error("LINE_CHANNEL_SECRET is not set in environment variables")
+    logger.error("LINE_CHANNEL_SECRET is not set")
     raise ValueError("LINE_CHANNEL_SECRET is required")
 handler = WebhookHandler(channel_secret)
 logger.debug(f"LINE Bot API initialized with token: {channel_access_token[:10]}...")
 logger.debug(f"Webhook handler initialized with secret: {channel_secret[:10]}...")
 
-# Gemini AI 設定
 gemini_api_key = os.environ.get("GEMINI_API_KEY")
 if not gemini_api_key:
-    logger.error("GEMINI_API_KEY is not set in environment variables")
+    logger.error("GEMINI_API_KEY is not set")
     raise ValueError("GEMINI_API_KEY is required")
 genai.configure(api_key=gemini_api_key)
 model = genai.GenerativeModel("gemini-1.5-pro")
 logger.debug(f"Gemini AI configured with key: {gemini_api_key[:10]}...")
 
-# 檔案名稱模板
 def get_user_file(user_id, file_type):
     return f"{file_type}_{user_id}.json"
 
-# 讀取與儲存 JSON
 def load_json(file_path):
     if os.path.exists(file_path):
         try:
@@ -90,8 +83,7 @@ def load_json(file_path):
                     return data if isinstance(data, list) else []
         except Exception as e:
             logger.error(f"Error loading JSON from {file_path}: {e}")
-            return {} if file_path.endswith("_profile.json") else []
-    logger.debug(f"No file found at {file_path}, returning default")
+    logger.debug(f"No file at {file_path}, returning default")
     return {} if file_path.endswith("_profile.json") else []
 
 def save_json(file_path, data):
@@ -102,11 +94,26 @@ def save_json(file_path, data):
     except Exception as e:
         logger.error(f"Error saving JSON to {file_path}: {e}")
 
-# 設定個性（預設值）
 def get_setting(prompt):
     return 4
 
-# 處理 LINE 訊息
+def send_reply(reply_token, message):
+    retries = 3
+    for attempt in range(retries):
+        try:
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=reply_token,
+                    messages=[TextMessage(text=message)]
+                )
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Attempt {attempt + 1}/{retries} failed: {e}")
+            if attempt < retries - 1:
+                time.sleep(1)  # 等待 1 秒後重試
+    return False
+
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     user_id = event.source.user_id
@@ -127,7 +134,6 @@ def handle_message(event):
         user_profile["ai_gender"] = "中性"
         logger.debug(f"Set default ai_gender for {user_id}")
 
-    # 只在 personality 完全不存在時初始化
     if "personality" not in user_profile or not user_profile["personality"]:
         user_profile["personality"] = {}
         for setting in FREE_PERSONALITY_SETTINGS:
@@ -137,16 +143,10 @@ def handle_message(event):
                 user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
         save_json(user_profile_file, user_profile)
         logger.debug(f"Initialized personality for {user_id}: {user_profile}")
-        try:
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text="✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉")]
-                )
-            )
+        if send_reply(event.reply_token, "✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉"):
             logger.debug(f"Sent initialization response to {user_id}")
-        except Exception as e:
-            logger.error(f"Error sending initialization response: {e}")
+        else:
+            logger.error(f"Failed to send initialization response after retries")
         messages.append({"user": user_input, "ai": "✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉"})
         save_json(messages_file, messages)
         return
@@ -159,16 +159,10 @@ def handle_message(event):
                 user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
         save_json(user_profile_file, user_profile)
         logger.debug(f"Updated personality for {user_id}: {user_profile}")
-        try:
-            line_bot_api.reply_message(
-                ReplyMessageRequest(
-                    reply_token=event.reply_token,
-                    messages=[TextMessage(text="✅ AI 個性已更新！請繼續聊天～")]
-                )
-            )
+        if send_reply(event.reply_token, "✅ AI 個性已更新！請繼續聊天～"):
             logger.debug(f"Sent update response to {user_id}")
-        except Exception as e:
-            logger.error(f"Error sending update response: {e}")
+        else:
+            logger.error(f"Failed to send update response after retries")
         messages.append({"user": user_input, "ai": "✅ AI 個性已更新！請繼續聊天～"})
         save_json(messages_file, messages)
         return
@@ -200,16 +194,10 @@ def handle_message(event):
         ai_response = "哎呀，好像出了點問題，我晚點再試試吧！"
         logger.error(f"Error generating response: {e}")
 
-    try:
-        line_bot_api.reply_message(
-            ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=ai_response)]
-            )
-        )
+    if send_reply(event.reply_token, ai_response):
         logger.debug(f"Sent response to {user_id}: {ai_response}")
-    except Exception as e:
-        logger.error(f"Error sending response: {e}")
+    else:
+        logger.error(f"Failed to send response after retries")
         return
 
     messages.append({"user": user_input, "ai": ai_response})
