@@ -51,8 +51,8 @@ if not channel_access_token:
     logger.error("LINE_CHANNEL_ACCESS_TOKEN is not set")
     raise ValueError("LINE_CHANNEL_ACCESS_TOKEN is required")
 configuration = Configuration(access_token=channel_access_token)
-with ApiClient(configuration) as api_client:
-    line_bot_api = MessagingApi(api_client)
+api_client = ApiClient(configuration)
+line_bot_api = MessagingApi(api_client)
 channel_secret = os.environ.get("LINE_CHANNEL_SECRET")
 if not channel_secret:
     logger.error("LINE_CHANNEL_SECRET is not set")
@@ -107,11 +107,16 @@ def send_reply(reply_token, message):
                     messages=[TextMessage(text=message)]
                 )
             )
+            logger.debug(f"Reply sent successfully with token: {reply_token}")
             return True
+        except InvalidSignatureError:
+            logger.error(f"Invalid reply token: {reply_token}")
+            break
         except Exception as e:
             logger.error(f"Attempt {attempt + 1}/{retries} failed: {e}")
             if attempt < retries - 1:
                 time.sleep(1)
+    logger.error(f"Failed to send reply after {retries} attempts")
     return False
 
 @handler.add(MessageEvent, message=TextMessageContent)
@@ -150,7 +155,7 @@ def handle_message(event):
         if send_reply(event.reply_token, "✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉"):
             logger.debug(f"Sent initialization response to {user_id}")
         else:
-            logger.error(f"Failed to send initialization response after retries")
+            logger.error(f"Failed to send initialization response")
         messages.append({"user": user_input, "ai": "✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉"})
         save_json(messages_file, messages)
         return
@@ -166,7 +171,7 @@ def handle_message(event):
         if send_reply(event.reply_token, "✅ AI 個性已更新！請繼續聊天～"):
             logger.debug(f"Sent update response to {user_id}")
         else:
-            logger.error(f"Failed to send update response after retries")
+            logger.error(f"Failed to send update response")
         messages.append({"user": user_input, "ai": "✅ AI 個性已更新！請繼續聊天～"})
         save_json(messages_file, messages)
         return
@@ -201,7 +206,7 @@ def handle_message(event):
     if send_reply(event.reply_token, ai_response):
         logger.debug(f"Sent response to {user_id}: {ai_response}")
     else:
-        logger.error(f"Failed to send response after retries")
+        logger.error(f"Failed to send response")
         return
 
     messages.append({"user": user_input, "ai": ai_response})
