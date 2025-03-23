@@ -69,34 +69,6 @@ genai.configure(api_key=gemini_api_key)
 model = genai.GenerativeModel("gemini-1.5-pro")
 logger.debug(f"Gemini AI configured with key: {gemini_api_key[:10]}...")
 
-def get_user_file(user_id, file_type):
-    return f"{file_type}_{user_id}.json"
-
-def load_json(file_path):
-    if os.path.exists(file_path):
-        try:
-            with open(file_path, "r", encoding="utf-8") as file:
-                data = json.load(file)
-                if file_path.endswith("_profile.json"):
-                    return data if isinstance(data, dict) else {}
-                elif file_path.endswith("_history.json"):
-                    return data if isinstance(data, list) else []
-        except Exception as e:
-            logger.error(f"Error loading JSON from {file_path}: {e}")
-    logger.debug(f"No file at {file_path}, returning default")
-    return {} if file_path.endswith("_profile.json") else []
-
-def save_json(file_path, data):
-    try:
-        with open(file_path, "w", encoding="utf-8") as file:
-            json.dump(data, file, ensure_ascii=False, indent=4)
-        logger.debug(f"Successfully saved to {file_path}: {data}")
-    except Exception as e:
-        logger.error(f"Error saving JSON to {file_path}: {e}")
-
-def get_setting(prompt):
-    return 4
-
 def send_reply(reply_token, message):
     retries = 3
     for attempt in range(retries):
@@ -125,55 +97,35 @@ def handle_message(event):
     user_input = event.message.text.strip()
     logger.debug(f"Received message from {user_id}: {user_input}")
 
-    user_profile_file = get_user_file(user_id, "user_profile")
-    messages_file = get_user_file(user_id, "chat_history")
-    user_profile = load_json(user_profile_file)
-    messages = load_json(messages_file)
-    logger.debug(f"Loaded profile: {user_profile}")
-    logger.debug(f"Loaded history: {messages}")
+    # 模擬個性設定（避免檔案依賴）
+    user_profile = {
+        "ai_gender": "中性",
+        "personality": {
+            "幽默感": 4,
+            "溫暖程度": 4,
+            "樂觀度": 4,
+            "回應態度": 4,
+            "健談程度": 4
+        }
+    }
+    logger.debug(f"Using profile for {user_id}: {user_profile}")
 
-    FREE_PERSONALITY_SETTINGS = ["幽默感", "溫暖程度", "樂觀度", "回應態度", "健談程度"]
-    PAID_PERSONALITY_SETTINGS = ["直率程度", "情緒應對方式", "建議提供程度", "深度話題程度"]
-
-    if not isinstance(user_profile, dict):
-        user_profile = {}
-        logger.debug(f"Reset user_profile to dict for {user_id}")
-
-    if "ai_gender" not in user_profile:
-        user_profile["ai_gender"] = "中性"
-        logger.debug(f"Set default ai_gender for {user_id}")
-
-    if "personality" not in user_profile or not isinstance(user_profile["personality"], dict):
-        user_profile["personality"] = {}
-        for setting in FREE_PERSONALITY_SETTINGS:
-            user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
-        if "付費用戶" in user_profile and user_profile["付費用戶"]:
-            for setting in PAID_PERSONALITY_SETTINGS:
-                user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
-        save_json(user_profile_file, user_profile)
-        logger.debug(f"Initialized personality for {user_id}: {user_profile}")
-        if send_reply(event.reply_token, "✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉"):
-            logger.debug(f"Sent initialization response to {user_id}")
-        else:
-            logger.error(f"Failed to send initialization response")
-        messages.append({"user": user_input, "ai": "✅ 你的 AI 朋友個性已設定完成！開始聊天吧 🎉"})
-        save_json(messages_file, messages)
-        return
+    # 模擬對話歷史（避免檔案依賴）
+    messages = []
 
     if user_input == "調整設定":
-        for setting in FREE_PERSONALITY_SETTINGS:
-            user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
-        if "付費用戶" in user_profile and user_profile["付費用戶"]:
-            for setting in PAID_PERSONALITY_SETTINGS:
-                user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
-        save_json(user_profile_file, user_profile)
+        # 模擬調整設定（這裡直接重置，實際應用需外部儲存）
+        user_profile["personality"] = {
+            "幽默感": 4,
+            "溫暖程度": 4,
+            "樂觀度": 4,
+            "回應態度": 4,
+            "健談程度": 4
+        }
         logger.debug(f"Updated personality for {user_id}: {user_profile}")
         if send_reply(event.reply_token, "✅ AI 個性已更新！請繼續聊天～"):
             logger.debug(f"Sent update response to {user_id}")
-        else:
-            logger.error(f"Failed to send update response")
         messages.append({"user": user_input, "ai": "✅ AI 個性已更新！請繼續聊天～"})
-        save_json(messages_file, messages)
         return
 
     personality = user_profile["personality"]
@@ -210,8 +162,7 @@ def handle_message(event):
         return
 
     messages.append({"user": user_input, "ai": ai_response})
-    save_json(messages_file, messages)
-    logger.debug(f"Saved chat history for {user_id}: {messages}")
+    logger.debug(f"Updated in-memory history for {user_id}: {messages}")
 
 if __name__ == "__main__":
     import os
