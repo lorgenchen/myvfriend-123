@@ -111,7 +111,7 @@ def send_reply(reply_token, message):
         except Exception as e:
             logger.error(f"Attempt {attempt + 1}/{retries} failed: {e}")
             if attempt < retries - 1:
-                time.sleep(1)  # 等待 1 秒後重試
+                time.sleep(1)
     return False
 
 @handler.add(MessageEvent, message=TextMessageContent)
@@ -130,11 +130,15 @@ def handle_message(event):
     FREE_PERSONALITY_SETTINGS = ["幽默感", "溫暖程度", "樂觀度", "回應態度", "健談程度"]
     PAID_PERSONALITY_SETTINGS = ["直率程度", "情緒應對方式", "建議提供程度", "深度話題程度"]
 
+    if not isinstance(user_profile, dict):
+        user_profile = {}
+        logger.debug(f"Reset user_profile to dict for {user_id}")
+
     if "ai_gender" not in user_profile:
         user_profile["ai_gender"] = "中性"
         logger.debug(f"Set default ai_gender for {user_id}")
 
-    if "personality" not in user_profile or not user_profile["personality"]:
+    if "personality" not in user_profile or not isinstance(user_profile["personality"], dict):
         user_profile["personality"] = {}
         for setting in FREE_PERSONALITY_SETTINGS:
             user_profile["personality"][setting] = get_setting(f"請設定 {setting}")
